@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Equilibrio Precario - Il Gioco</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #222; /* Default background */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      max-width: 100%;
+      max-height: 100vh;
+    }
+    #gameContainer {
+      position: relative;
+      width: 400px;
+      height: 600px;
+      margin: 20px auto;
+      overflow: hidden;
+    }
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      text-align: center;
+      font-size: 48px;
+      color: #00FF00;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      z-index: 10;
+      pointer-events: none;
+    }
+    #scoreDisplay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      color: #ffffff;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #levelDisplay {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 24px;
+      color: #ffffff;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+     #controls {
+      text-align: center;
+      margin-top: 20px;
+      color: #ddd;
+    }
+    button {
+      background-color: #4a6fa5;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 0 5px;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #6789b4;
+    }
+     #tutorial {
+      color: #ddd;
+      max-width: 400px;
+      margin: 20px auto;
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      display: none; /* Hide by default, show for level 1 */
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <div id="message"></div>
+    <div id="scoreDisplay">Punti: 0</div>
+    <div id="levelDisplay">Livello: 1</div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+  </div>
+  <div id="controls">
+    <button id="btnPause" style="display: none;">Pausa</button> <button id="btnReset">Ricomincia</button>
+  
+    <button id="btnLeft" style="display:none;">◀</button>
+    <button id="btnRight" style="display:none;">▶</button>
+  </div>
+  <div id="tutorial">
+    <h3>Come giocare:</h3>
+    <p>Mantieni il vaso in equilibrio cliccando o toccando lo schermo per contrastare la gravità!</p>
+    <p>Più a lungo mantieni il vaso in aria, più punti guadagni.</p>
+    <p>Evita che il vaso tocchi il pavimento o il soffitto e stai attento agli ostacoli!</p>
+    <p>Raccogli i power-up colorati per ottenere abilità speciali temporanee.</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Game State
+    let currentLevel = 1;
+    let score = 0;
+    let isGameOver = false;
+    let isGameWon = false;
+    let isPaused = false;
+    let animationId = null;
+    let frame = 0;
+
+    // Level 1 Variables (Vase Game)
+    let backgroundCanvasLevel1, vaseCanvasLevel1;
+    const vase = { x: 0, y: 0, width: 80, height: 120, velocity: 0 };
+    let gravityLevel1 = 0.08;
+    let jumpForceLevel1 = -3.5;
+    let maxVelocityLevel1 = 8;
+    let obstaclesLevel1 = [];
+    let particlesLevel1 = [];
+    let powerUpsLevel1 = [];
+    let powerUpActiveLevel1 = null;
+    let powerUpTimerLevel1 = 0;
+    let glowLevel1 = false;
+     const levelSettingsLevel1 = [
+      { gravity: 0.08, obstacleFrequency: 250, maxVelocity: 8 },
+      { gravity: 0.12, obstacleFrequency: 220, maxVelocity: 9 },
+      { gravity: 0.18, obstacleFrequency: 180, maxVelocity: 10 },
+      { gravity: 0.22, obstacleFrequency: 150, maxVelocity: 11 },
+      { gravity: 0.28, obstacleFrequency: 120, maxVelocity: 12 }
+    ];
+     const powerUpTypesLevel1 = [
+      { type: 'slowTime', color: '#4287f5', duration: 5, effect: () => { gravityLevel1 *= 0.5; } },
+      { type: 'shield', color: '#f542e3', duration: 7, effect: () => {} },
+      { type: 'doublePoints', color: '#f5d742', duration: 10, effect: () => {} }
+    ];
+
+
+    // Level 2 Variables (Surfer Game)
+    const surfer = { x: 0, y: 0, width: 50, height: 60, speed: 5, isMovingLeft: false, isMovingRight: false };
+    let sharksLevel2 = [];
+    const sharkLevel2 = { width: 70, height: 40, baseSpeed: 1.5, spawnFrequency: 120 }; // Increased spawn frequency
+
+
+    // Audio (placeholders)
+    const audio = {
+      jump: { play: () => {} },
+      crash: { play: () => {} },
+      levelUp: { play: () => {} },
+      powerUp: { play: () => {} },
+      background: { play: () => {}, pause: () => {} }
+    };
+
+
+    // --- Drawing Functions ---
+
+    function drawBackground() {
+        if (currentLevel === 1) {
+             ctx.drawImage(backgroundCanvasLevel1, 0, 0, canvas.width, canvas.height);
+        } else if (currentLevel === 2) {
+             ctx.clearRect(0, 0, canvas.width, canvas.height);
+             // Draw ocean gradient
+             const seaGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+             seaGradient.addColorStop(0, '#87CEEB'); // Sky
+             seaGradient.addColorStop(0.7, '#4682B4'); // Sea
+             ctx.fillStyle = seaGradient;
+             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+             // Add some simple waves (optional, keep for visual)
+             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+             ctx.beginPath();
+             ctx.moveTo(0, canvas.height * 0.7);
+             ctx.quadraticCurveTo(canvas.width * 0.25, canvas.height * 0.65, canvas.width * 0.5, canvas.height * 0.7);
+             ctx.quadraticCurveTo(canvas.width * 0.75, canvas.height * 0.75, canvas.width, canvas.height * 0.7);
+             ctx.lineTo(canvas.width, canvas.height);
+             ctx.lineTo(0, canvas.height);
+             ctx.closePath();
+             ctx.fill();
+        }
+    }
+
+    function drawVase() {
+      if (currentLevel !== 1 || isGameOver || isGameWon) return;
+
+      ctx.save();
+
+      if (powerUpActiveLevel1) {
+        ctx.shadowColor = powerUpActiveLevel1.color;
+        ctx.shadowBlur = 15;
+      } else if (glowLevel1) {
+        ctx.shadowColor = "rgba(255, 200, 100, 0.6)";
+        ctx.shadowBlur = 20;
+      }
+
+      const rotation = vase.velocity * 0.03;
+      ctx.translate(vase.x + vase.width / 2, vase.y + vase.height / 2);
+      ctx.rotate(rotation);
+      ctx.drawImage(vaseCanvasLevel1, -vase.width / 2, -vase.height / 2, vase.width, vase.height);
+
+      ctx.restore();
+    }
+
+     function drawObstaclesLevel1() {
+        if (currentLevel !== 1) return;
+         obstaclesLevel1.forEach(obs => {
+            ctx.fillStyle = obs.color;
+            ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+          });
+     }
+
+    function drawParticlesLevel1() {
+         if (currentLevel !== 1) return;
+         particlesLevel1.forEach((p, index) => {
+            p.life--;
+            if (p.life <= 0) {
+              particlesLevel1.splice(index, 1);
+              return;
+            }
+
+            p.x += p.vx;
+            p.y += p.vy;
+
+            const alpha = p.life / p.maxLife;
+            ctx.fillStyle = `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+            ctx.fill();
+          });
+    }
+
+    function drawPowerUpsLevel1() {
+        if (currentLevel !== 1) return;
+        powerUpsLevel1.forEach(pu => {
+            ctx.fillStyle = pu.color;
+            ctx.beginPath();
+            ctx.arc(pu.x, pu.y, pu.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            const glowSize = pu.size + 5 * Math.sin(frame * 0.1);
+            ctx.fillStyle = `rgba(255, 255, 255, 0.4)`;
+            ctx.beginPath();
+            ctx.arc(pu.x, pu.y, glowSize, 0, Math.PI * 2);
+            ctx.fill();
+          });
+    }
+
+    function drawPowerUpTimerLevel1() {
+      if (currentLevel !== 1 || !powerUpActiveLevel1) return;
+
+        const barWidth = 200;
+        const barHeight = 10;
+        const x = (canvas.width - barWidth) / 2;
+        const y = 560;
+        const progress = powerUpTimerLevel1 / (powerUpActiveLevel1.duration * 60);
+
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4);
+
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(x, y, barWidth, barHeight);
+
+        ctx.fillStyle = powerUpActiveLevel1.color;
+        ctx.fillRect(x, y, barWidth * progress, barHeight);
+    }
+
+    // Draw the surfer (Cartoon style - Reverted)
+    
+    function drawSurfer() {
+        if (currentLevel !== 2) return;
+        ctx.save();
+
+        // Draw surfboard (orange oval)
+        const boardX = surfer.x + surfer.width / 2;
+        const boardY = surfer.y + 50;
+        ctx.translate(boardX, boardY);
+        ctx.rotate(-0.1);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, surfer.width * 0.6, 10, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#FFA500';
+        ctx.fill();
+        ctx.restore();
+
+        // Draw surfer with facial features and proportional blonde hair
+        const headX = surfer.x + surfer.width / 2;
+        const headY = surfer.y;
+        const headRadius = 12;
+
+        // Hair (blonde) - longer
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        // Longer hair: increased radius and lower arc center
+        const hairRadius = headRadius + 4;
+        ctx.arc(headX, headY - headRadius + 6, hairRadius, Math.PI, 0, false);
+        ctx.fill();
+
+        // Head
+        ctx.fillStyle = '#FFDAB9';
+        ctx.beginPath();
+        ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(headX - 5, headY - 2, 2, 0, Math.PI * 2);
+        ctx.arc(headX + 5, headY - 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.strokeStyle = '#DFAF7C';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(headX, headY - 1);
+        ctx.lineTo(headX, headY + 3);
+        ctx.stroke();
+
+        // Mouth
+        ctx.strokeStyle = '#900000';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(headX, headY + 6, 4, 0, Math.PI);
+        ctx.stroke();
+
+        // Body (red shirt)
+        ctx.fillStyle = '#FF6347';
+        ctx.fillRect(surfer.x + surfer.width / 2 - 5, surfer.y + 5, 10, 25);
+
+        // Arms
+        ctx.strokeStyle = '#FFDAB9';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(surfer.x + surfer.width / 2, surfer.y + 15);
+        ctx.lineTo(surfer.x + surfer.width / 2 - 12, surfer.y + 25);
+        ctx.moveTo(surfer.x + surfer.width / 2, surfer.y + 15);
+        ctx.lineTo(surfer.x + surfer.width / 2 + 12, surfer.y + 25);
+        ctx.stroke();
+
+        // Legs
+        ctx.beginPath();
+        ctx.moveTo(surfer.x + surfer.width / 2, surfer.y + 30);
+        ctx.lineTo(surfer.x + surfer.width / 2 - 8, surfer.y + 45);
+        ctx.moveTo(surfer.x + surfer.width / 2, surfer.y + 30);
+        ctx.lineTo(surfer.x + surfer.width / 2 + 8, surfer.y + 45);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+// Draw a shark (Cartoon style - Reverted)
+    
+    function drawShark(s) {
+        if (currentLevel !== 2) return;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+
+        // Draw shark body
+        ctx.beginPath();
+        ctx.moveTo(0, s.height / 2);
+        ctx.quadraticCurveTo(s.width / 2, -s.height / 3, s.width, s.height / 2);
+        ctx.quadraticCurveTo(s.width - 20, s.height * 0.8, s.width * 0.6, s.height * 0.6);
+        ctx.quadraticCurveTo(s.width * 0.4, s.height * 0.9, 0, s.height / 2);
+        ctx.closePath();
+        ctx.fillStyle = '#708090';
+        ctx.fill();
+
+        // Dorsal fin
+        ctx.beginPath();
+        ctx.moveTo(s.width * 0.5, s.height * 0.2);
+        ctx.lineTo(s.width * 0.6, s.height * 0.05);
+        ctx.lineTo(s.width * 0.7, s.height * 0.2);
+        ctx.closePath();
+        ctx.fillStyle = '#A9A9A9';
+        ctx.fill();
+
+        // Tail fin
+        ctx.beginPath();
+        ctx.moveTo(s.width, s.height * 0.5);
+        ctx.lineTo(s.width + 10, s.height * 0.4);
+        ctx.lineTo(s.width + 10, s.height * 0.6);
+        ctx.closePath();
+        ctx.fillStyle = '#708090';
+        ctx.fill();
+
+        // Eye
+        ctx.beginPath();
+        ctx.arc(s.width * 0.2, s.height * 0.4, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(s.width * 0.2, s.height * 0.4, 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+
+        ctx.restore();
+    }
+// --- Game Logic Functions ---
+
+    function update() {
+        if (isPaused || isGameOver || isGameWon) return;
+
+        frame++;
+
+        if (currentLevel === 1) {
+            // Level 1 Update Logic
+            vase.velocity += gravityLevel1;
+            if (vase.velocity > maxVelocityLevel1) vase.velocity = maxVelocityLevel1;
+            if (vase.velocity < -maxVelocityLevel1) vase.velocity = -maxVelocityLevel1;
+            vase.y += vase.velocity;
+
+            if (powerUpActiveLevel1) {
+                powerUpTimerLevel1--;
+                if (powerUpTimerLevel1 <= 0) {
+                    deactivatePowerUpLevel1();
+                }
+            }
+
+             // Utilizza la frequenza ostacoli del primo livello delle impostazioni
+             if (frame % (levelSettingsLevel1[0].obstacleFrequency) === 0) {
+                createObstacleLevel1();
+              }
+
+            obstaclesLevel1.forEach(obs => {
+                 // Velocità ostacoli ridotta
+                obs.x += obs.speed; // Usiamo la velocità definita in createObstacleLevel1
+                if (obs.x + obs.width < 0) obs.x = canvas.width;
+                if (obs.x > canvas.width) obs.x = -obs.width;
+            });
+
+             createPowerUpLevel1(); // Occasional creation
+
+             if (glowLevel1 && frame % 5 === 0) {
+                glowLevel1 = false;
+            }
+
+
+        } else if (currentLevel === 2) {
+            // Level 2 Update Logic
+             if (surfer.isMovingLeft) {
+                surfer.x -= surfer.speed;
+            }
+            if (surfer.isMovingRight) {
+                surfer.x += surfer.speed;
+            }
+
+            if (surfer.x < 0) surfer.x = 0;
+            if (surfer.x + surfer.width > canvas.width) surfer.x = canvas.width - surfer.width;
+
+             sharksLevel2.forEach((s, index) => {
+                s.y += s.speedY; // Update y position for vertical movement
+                 if (s.y > canvas.height) { // Remove shark if it goes off the bottom
+                    sharksLevel2.splice(index, 1);
+                }
+            });
+
+             // Create new sharks
+             if (frame % sharkLevel2.spawnFrequency === 0) { // Reverted to simpler spawn frequency
+                createSharkLevel2();
+            }
+        }
+
+        checkCollisions();
+
+        // Update score less frequently for longer duration
+        if (frame % 15 === 0) {
+            updateScore();
+        }
+    }
+
+    function checkCollisions() {
+      if (isGameOver || isGameWon) return false;
+
+      if (currentLevel === 1) {
+            // Level 1 Collision Logic
+            if (vase.y + vase.height >= canvas.height - 20) {
+                gameOver('floor');
+                return true;
+            }
+
+            if (vase.y <= 0) {
+                gameOver('ceiling');
+                return true;
+            }
+
+            for (let i = 0; i < obstaclesLevel1.length; i++) {
+                const obs = obstaclesLevel1[i];
+                if (
+                  vase.x < obs.x + obs.width &&
+                  vase.x + vase.width > obs.x &&
+                  vase.y < obs.y + obs.height &&
+                  vase.y + vase.height > obs.y
+                ) {
+                  if (powerUpActiveLevel1 && powerUpActiveLevel1.type === 'shield') {
+                    obstaclesLevel1.splice(i, 1);
+                    createParticleExplosionLevel1(obs.x + obs.width/2, obs.y + obs.height/2, 15);
+                    return false;
+                  } else {
+                    gameOver('obstacle');
+                    return true;
+                  }
+                }
+            }
+
+            for (let i = 0; i < powerUpsLevel1.length; i++) {
+                const pu = powerUpsLevel1[i];
+                const dx = (vase.x + vase.width/2) - pu.x;
+                const dy = (vase.y + vase.height/2) - pu.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < vase.width/2 + pu.size) {
+                  activatePowerUpLevel1(pu);
+                  powerUpsLevel1.splice(i, 1);
+                  break;
+                }
+            }
+
+
+      } else if (currentLevel === 2) {
+            // Level 2 Collision Logic
+             for (let i = 0; i < sharksLevel2.length; i++) {
+                const s = sharksLevel2[i];
+                 // Simple AABB collision detection
+                if (
+                    surfer.x < s.x + s.width &&
+                    surfer.x + surfer.width > s.x &&
+                    surfer.y < s.y + s.height &&
+                    surfer.y + surfer.height > s.y
+                ) {
+                    gameOver();
+                    break;
+                }
+            }
+      }
+
+      return false;
+    }
+
+    function updateScore() {
+      if (isGameOver || isGameWon) return;
+
+      score++;
+      document.getElementById("scoreDisplay").innerText = `Punti: ${score}`;
+
+      if (currentLevel === 1 && score >= 60) {
+        winLevel1();
+      } else if (currentLevel === 2 && score >= 60) {
+        winGame();
+      }
+    }
+
+     function gameOver(reason = 'hit') {
+        isGameOver = true;
+
+        let message = "";
+        if (currentLevel === 1) {
+            switch(reason) {
+                case 'floor': message = "💥 Il vaso si è rotto!"; break;
+                case 'ceiling': message = "💢 Il vaso ha colpito il soffitto!"; break;
+                case 'obstacle': message = "💥 Il vaso ha urtato un ostacolo!"; break;
+            }
+            createParticleExplosionLevel1(vase.x + vase.width/2, vase.y + vase.height/2, 50, { r: 255, g: 100, b: 100 });
+            audio.crash.play();
+
+        } else if (currentLevel === 2) {
+             message = "Game Over!";
+        }
+
+        showMessage(message + " Clicca 'Ricomincia' per riprovare.");
+        audio.background.pause();
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+
+
+    function winLevel1() {
+        isGameWon = true; // Temporarily set to true for message
+        isGameOver = true; // Stop animation
+
+        showMessage("LIVELLO SUPERATO");
+        createParticleExplosionLevel1(canvas.width / 2, canvas.height / 2, 150, { r: 0, g: 255, b: 0 });
+        audio.background.pause();
+         audio.levelUp.play();
+
+
+        setTimeout(() => {
+            currentLevel = 2;
+            score = 0; // Reset score for new level
+            isGameOver = false;
+            isGameWon = false;
+            isPaused = false;
+            frame = 0;
+            sharksLevel2 = [];
+            obstaclesLevel1 = []; // Clear level 1 elements
+            particlesLevel1 = [];
+            powerUpsLevel1 = [];
+            deactivatePowerUpLevel1();
+
+
+            document.getElementById("scoreDisplay").innerText = "Punti: 0";
+            document.getElementById("levelDisplay").innerText = "Livello: 2";
+            document.getElementById("btnPause").style.display = 'none'; // Hide pause button
+            document.getElementById("tutorial").style.display = 'none'; // Hide tutorial
+             document.body.style.backgroundColor = '#87CEEB'; // Change background
+
+
+            // Reset surfer position for level 2
+            surfer.x = canvas.width / 2 - 25;
+            surfer.y = canvas.height - 100;
+            surfer.isMovingLeft = false;
+            surfer.isMovingRight = false;
+
+
+            showMessage(""); // Clear message
+            if (!animationId) {
+                animate(0); // Start level 2 animation
+            }
+        }, 3000); // 3 second delay before starting level 2
+    }
+
+    function winGame() {
+         isGameWon = true;
+        isGameOver = true;
+         showMessage("LIVELLO SUPERATO");
+         audio.background.pause();
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+
+
+    function resetGame() {
+    // Se siamo nel livello 3, riavviamo correttamente
+    if (currentLevel === 3) {
+        if (typeof animationIdL3 !== 'undefined' && animationIdL3 !== null) {
+            cancelAnimationFrame(animationIdL3);
+            animationIdL3 = null;
+        }
+        startLevel3();
+        return;
+    }
+// Se siamo nel livello 4, riavviamo correttamente
+if (currentLevel === 4) {
+    if (typeof window.animationIdL4 !== 'undefined' && window.animationIdL4 !== null) {
+        cancelAnimationFrame(window.animationIdL4);
+        window.animationIdL4 = null;
+    }
+    startLevel4();
+    return;
+}
+
+
+if (currentLevel === 1) {
+            vase.y = 50;
+            vase.velocity = 0;
+             obstaclesLevel1 = [];
+            particlesLevel1 = [];
+            powerUpsLevel1 = [];
+            deactivatePowerUpLevel1();
+
+             document.getElementById("btnPause").style.display = 'inline-block'; // Show pause button
+             document.getElementById("tutorial").style.display = 'block'; // Show tutorial
+             document.body.style.backgroundColor = '#222'; // Restore background
+
+             // Recreate level 1 specific canvas elements
+             vaseCanvasLevel1 = createCartoonVase();
+             backgroundCanvasLevel1 = createCartoonDiningRoom(1);
+
+        } else if (currentLevel === 2) {
+             sharksLevel2 = [];
+             surfer.x = canvas.width / 2 - 25;
+             surfer.y = canvas.height - 100;
+             surfer.isMovingLeft = false;
+             surfer.isMovingRight = false;
+
+
+             document.getElementById("btnPause").style.display = 'none'; // Hide pause button
+              document.getElementById("tutorial").style.display = 'none'; // Hide tutorial
+             document.body.style.backgroundColor = '#87CEEB'; // Keep level 2 background
+
+        }
+
+        score = 0;
+        isGameOver = false;
+        isGameWon = false;
+        isPaused = false;
+        frame = 0;
+
+        document.getElementById("scoreDisplay").innerText = "Punti: 0";
+        document.getElementById("levelDisplay").innerText = `Livello: ${currentLevel}`;
+        document.getElementById("btnPause").innerText = "Pausa";
+        showMessage("");
+
+
+        audio.background.play();
+
+        const messageElement = document.getElementById("message");
+        messageElement.style.color = '#ff6b6b';
+        messageElement.style.fontSize = '24px';
+
+        if (!animationId) {
+            animate(0);
+        }
+    }
+
+
+     function togglePause() {
+      isPaused = !isPaused;
+      document.getElementById("btnPause").innerText = isPaused ? "Riprendi" : "Pausa";
+
+      if (!isPaused && !isGameOver && !isGameWon && !animationId) {
+        animate(0);
+      }
+
+      if (isPaused) {
+        showMessage("PAUSA");
+        audio.background.pause();
+      } else {
+        if (!isGameOver && !isGameWon) {
+             showMessage("");
+        }
+        audio.background.play();
+      }
+    }
+
+    function showMessage(text) {
+        const messageElement = document.getElementById("message");
+        messageElement.innerText = text;
+         if (isGameWon) {
+           messageElement.style.color = '#00FF00';
+           messageElement.style.fontSize = '48px';
+       } else {
+           messageElement.style.color = '#ff6b6b';
+           messageElement.style.fontSize = '24px';
+       }
+    }
+
+    // Level 1 Specific Functions
+    function createCartoonVase() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 150;
+      const ctx = canvas.getContext('2d');
+
+      const ceramicGradient = ctx.createLinearGradient(0, 0, 100, 0);
+      ceramicGradient.addColorStop(0, '#3498db');
+      ceramicGradient.addColorStop(0.5, '#2980b9');
+      ceramicGradient.addColorStop(1, '#3498db');
+
+      ctx.beginPath();
+      ctx.moveTo(30, 140);
+      ctx.bezierCurveTo(10, 110, 10, 40, 30, 10);
+      ctx.lineTo(70, 10);
+      ctx.bezierCurveTo(90, 40, 90, 110, 70, 140);
+      ctx.closePath();
+      ctx.fillStyle = ceramicGradient;
+      ctx.fill();
+
+      ctx.fillStyle = '#1F618D';
+      ctx.beginPath();
+      ctx.ellipse(50, 10, 45, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ECF0F1';
+       ctx.beginPath();
+      ctx.ellipse(50, 10, 40, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(35, 20);
+      ctx.quadraticCurveTo(40, 50, 35, 80);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(30, 140);
+      ctx.bezierCurveTo(10, 110, 10, 40, 30, 10);
+      ctx.lineTo(70, 10);
+      ctx.bezierCurveTo(90, 40, 90, 110, 70, 140);
+      ctx.closePath();
+      ctx.stroke();
+
+       ctx.beginPath();
+      ctx.ellipse(50, 10, 45, 8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+
+      return canvas;
+    }
+
+    function createCartoonDiningRoom(level) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 600;
+      const ctx = canvas.getContext('2d');
+
+      let wallColor;
+      switch(level) {
+        case 1: wallColor = '#f8e9d2'; break;
+        case 2: wallColor = '#d2e9f8'; break;
+        case 3: wallColor = '#e9d2f8'; break;
+        case 4: wallColor = '#d2f8d6'; break;
+        case 5: wallColor = '#f8d2d2'; break;
+        default: wallColor = '#f8e9d2';
+      }
+
+      ctx.fillStyle = wallColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height - 100);
+
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(0, canvas.height - 100, canvas.width, 80);
+
+      ctx.strokeStyle = '#5e2c04';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height - 100 + i * 8);
+        ctx.lineTo(canvas.width, canvas.height - 100 + i * 8);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(0, canvas.height - 150, canvas.width, 10);
+
+      ctx.fillStyle = '#a05a2c';
+      ctx.fillRect(50, canvas.height - 100, 300, 10);
+      ctx.fillRect(70, canvas.height - 90, 20, 70);
+      ctx.fillRect(310, canvas.height - 90, 20, 70);
+
+      ctx.fillStyle = '#34495e';
+      ctx.fillRect(150, 50, 100, 80);
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(150, 50, 100, 80);
+
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(155, 55, 90, 40);
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillRect(155, 95, 90, 30);
+
+      ctx.fillStyle = '#f1c40f';
+      ctx.beginPath();
+      ctx.arc(170, 70, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath();
+      ctx.arc(200, 200, 30, 0, Math.PI, true);
+      ctx.fill();
+
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(200, 0);
+      ctx.lineTo(200, 170);
+      ctx.stroke();
+
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(30, 60, 80, 100);
+      ctx.strokeStyle = '#2c3e50';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(30, 60, 80, 100);
+
+      ctx.strokeStyle = '#2c3e50';
+      ctx.beginPath();
+      ctx.moveTo(70, 60);
+      ctx.lineTo(70, 160);
+      ctx.moveTo(30, 110);
+      ctx.lineTo(110, 110);
+      ctx.stroke();
+
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(100, canvas.height - 70, 40, 5);
+      ctx.fillRect(100, canvas.height - 70, 5, 50);
+      ctx.fillRect(135, canvas.height - 70, 5, 50);
+      ctx.fillRect(100, canvas.height - 130, 5, 60);
+      ctx.fillRect(135, canvas.height - 130, 5, 60);
+      ctx.fillRect(100, canvas.height - 130, 40, 5);
+      ctx.fillRect(100, canvas.height - 170, 40, 5);
+
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+
+      if (level >= 2) {
+        ctx.fillStyle = '#16a085';
+        ctx.fillRect(270, canvas.height - 130, 20, 30);
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath();
+        ctx.arc(280, canvas.height - 140, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(290, canvas.height - 135, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (level >= 3) {
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(300, 50, 80, 200);
+        for (let i = 0; i < 4; i++) {
+          ctx.fillStyle = '#5e2c04';
+          ctx.fillRect(300, 90 + i * 50, 80, 5);
+        }
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 5; j++) {
+            ctx.fillStyle = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6'][Math.floor(Math.random() * 5)];
+            ctx.fillRect(305 + j * 15, 55 + i * 50, 10, 35);
+          }
+        }
+      }
+
+      if (level >= 4) {
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath();
+        ctx.arc(200, 200, 40, 0, Math.PI, true);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.2)';
+        ctx.beginPath();
+        ctx.arc(200, 200, 100, 0, Math.PI, true);
+        ctx.fill();
+      }
+
+      if (level >= 5) {
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(100, canvas.height - 100, 200, 60);
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(110, canvas.height - 90, 180, 40);
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(250, canvas.height - 70, 40, 5);
+        ctx.fillRect(250, canvas.height - 70, 5, 50);
+        ctx.fillRect(285, canvas.height - 70, 5, 50);
+      }
+
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+      return canvas;
+    }
+
+     function createObstacleLevel1() {
+      // Dimensioni ostacoli più semplici e uniformi
+      const width = 50; // Larghezza fissa
+      const height = 20; // Altezza fissa
+      const x = Math.random() * (canvas.width - width);
+      const dir = Math.random() > 0.5 ? 1 : -1;
+      // Velocità ostacoli ridotta
+      const speed = (0.5 + Math.random() * 0.5) * dir; // Range di velocità ridotto
+
+
+      obstaclesLevel1.push({
+        x,
+        y: Math.random() * (canvas.height - height - 50),
+        width,
+        height,
+        speed: speed,
+        color: '#FF0000' // Colore rosso brillante per maggiore visibilità
+      });
+    }
+
+    function createPowerUpLevel1() {
+      if (Math.random() > 0.005 || powerUpsLevel1.length >= 2) return; // Reduced frequency
+
+      const powerUpType = powerUpTypesLevel1[Math.floor(Math.random() * powerUpTypesLevel1.length)];
+      powerUpsLevel1.push({
+        x: 50 + Math.random() * (canvas.width - 100),
+        y: 50 + Math.random() * (canvas.height - 200),
+        size: 15,
+        type: powerUpType.type,
+        color: powerUpType.color,
+        duration: powerUpType.duration,
+        effect: powerUpType.effect
+      });
+    }
+
+    function activatePowerUpLevel1(powerUp) {
+      powerUpActiveLevel1 = powerUp;
+      powerUpTimerLevel1 = powerUp.duration * 60;
+      powerUp.effect();
+      showMessage(`PowerUp: ${powerUp.type}!`);
+      setTimeout(() => showMessage(""), 2000);
+      audio.powerUp.play();
+    }
+
+    function deactivatePowerUpLevel1() {
+      if (!powerUpActiveLevel1) return;
+
+      if (powerUpActiveLevel1.type === 'slowTime') {
+        gravityLevel1 = levelSettingsLevel1[0].gravity; // Restore base gravity
+      }
+
+      powerUpActiveLevel1 = null;
+      powerUpTimerLevel1 = 0;
+    }
+
+    function createParticleExplosionLevel1(x, y, count, color) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 3;
+        particlesLevel1.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          color: color || { r: 255, g: 200, b: 100 },
+          size: 2 + Math.random() * 5,
+          life: 30 + Math.random() * 30,
+          maxLife: 60
+        });
+      }
+    }
+
+
+    // Level 2 Specific Functions
+    function createSharkLevel2() {
+        // Increase variation in horizontal spawn point
+        const x = Math.random() * (canvas.width - sharkLevel2.width);
+        const y = -sharkLevel2.height - Math.random() * 50; // Start further above with variation
+        const speedY = sharkLevel2.baseSpeed + Math.random() * 1.5; // Increase variation in speed
+
+        sharksLevel2.push({
+            x,
+            y,
+            width: sharkLevel2.width,
+            height: sharkLevel2.height,
+            speedY: speedY,
+            life: 600 // Sharks stay on screen for a limited time
+        });
+    }
+
+
+    // --- Game Loop ---
+
+    function animate(timestamp) {
+      const deltaTime = timestamp - (animate.lastTime || timestamp);
+      animate.lastTime = timestamp;
+
+
+      animationId = requestAnimationFrame(animate);
+
+      if (isPaused || isGameOver || isGameWon) return;
+
+      frame++;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+
+      update();
+
+      if (currentLevel === 1) {
+        drawPowerUpsLevel1();
+        drawObstaclesLevel1();
+        drawVase();
+        drawParticlesLevel1();
+        drawPowerUpTimerLevel1();
+      } else if (currentLevel === 2) {
+        drawSurfer();
+        sharksLevel2.forEach(drawShark);
+      }
+    }
+
+
+    // --- Event Listeners ---
+
+    canvas.addEventListener("click", () => {
+      if (isGameOver || isGameWon || isPaused) return;
+
+      if (currentLevel === 1) {
+         vase.velocity = jumpForceLevel1;
+         glowLevel1 = true;
+         audio.jump.play();
+         createParticleExplosionLevel1(vase.x + vase.width/2, vase.y + vase.height, 10);
+      }
+       // No click action for surfer in level 2 (using keys/touch)
+    });
+
+    document.getElementById("btnReset").addEventListener("click", resetGame);
+    document.getElementById("btnPause").addEventListener("click", togglePause);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "KeyR") {
+        resetGame();
+        return;
+      }
+      if (isGameOver || isGameWon || isPaused) return;
+
+      if (currentLevel === 1) {
+          if (e.code === "Space") {
+            vase.velocity = jumpForceLevel1;
+            glowLevel1 = true;
+            audio.jump.play();
+            createParticleExplosionLevel1(vase.x + vase.width/2, vase.y + vase.height, 10);
+          } else if (e.code === "KeyP") {
+            togglePause();
+          }
+      } else if (currentLevel === 2) {
+          if (e.key === "ArrowLeft") {
+                surfer.isMovingLeft = true;
+            } else if (e.key === "ArrowRight") {
+                surfer.isMovingRight = true;
+            }
+      }
+    });
+
+    document.addEventListener("keyup", (e) => {
+        if (currentLevel === 2) {
+            if (e.key === "ArrowLeft") {
+                surfer.isMovingLeft = false;
+            } else if (e.key === "ArrowRight") {
+                surfer.isMovingRight = false;
+            }
+        }
+    });
+
+    // Touch controls for mobile (Level 2 only)
+    canvas.addEventListener("touchstart", (e) => {
+         if (currentLevel !== 2 || isGameOver || isGameWon || isPaused) return;
+        const touchX = e.touches[0].clientX;
+        const canvasRect = canvas.getBoundingClientRect();
+        const touchXRelative = touchX - canvasRect.left;
+
+
+        if (touchXRelative < canvas.width / 2) {
+            surfer.isMovingLeft = true;
+        } else {
+            surfer.isMovingRight = true;
+        }
+         e.preventDefault(); // Prevent page scroll
+    }, { passive: false });
+
+    canvas.addEventListener("touchend", (e) => {
+         if (currentLevel !== 2) return;
+        surfer.isMovingLeft = false;
+        surfer.isMovingRight = false;
+         e.preventDefault(); // Prevent page scroll
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', function(e) {
+         if (currentLevel === 2) {
+             e.preventDefault(); // Prevent page scroll during move for level 2
+         }
+    }, { passive: false });
+
+
+    // --- Initialization ---
+
+    function initializeLevel1() {
+        currentLevel = 1;
+        score = 0;
+        isGameOver = false;
+        isGameWon = false;
+        isPaused = false;
+        frame = 0;
+        obstaclesLevel1 = [];
+        particlesLevel1 = [];
+        powerUpsLevel1 = [];
+        powerUpActiveLevel1 = null;
+        powerUpTimerLevel1 = 0;
+        glowLevel1 = false;
+
+        vase.x = canvas.width / 2 - 40;
+        vase.y = 50;
+        vase.velocity = 0;
+        gravityLevel1 = 0.08; // Imposta la gravità iniziale ridotta
+        maxVelocityLevel1 = 8;
+
+
+        document.getElementById("levelDisplay").innerText = "Livello: 1";
+        document.getElementById("btnPause").style.display = 'inline-block';
+        document.getElementById("tutorial").style.display = 'block';
+        document.body.style.backgroundColor = '#222'; // Dark background for level 1
+
+        vaseCanvasLevel1 = createCartoonVase();
+        backgroundCanvasLevel1 = createCartoonDiningRoom(1);
+
+         // Reset message style
+        const messageElement = document.getElementById("message");
+        messageElement.style.color = '#ff6b6b';
+        messageElement.style.fontSize = '24px';
+
+        if (!animationId) {
+            animate(0);
+        }
+    }
+
+     function initializeLevel2() {
+        currentLevel = 2;
+        score = 0;
+        isGameOver = false;
+        isGameWon = false;
+        isPaused = false;
+        frame = 0;
+        sharksLevel2 = [];
+
+        surfer.x = canvas.width / 2 - 25;
+        surfer.y = canvas.height - 100;
+        surfer.isMovingLeft = false;
+        surfer.isMovingRight = false;
+
+         document.getElementById("levelDisplay").innerText = "Livello: 2";
+         document.getElementById("btnPause").style.display = 'none'; // Hide pause button for level 2
+         document.getElementById("tutorial").style.display = 'none'; // Hide tutorial for level 2
+         document.body.style.backgroundColor = '#87CEEB'; // Sky blue for level 2
+
+
+         // Reset message style
+        const messageElement = document.getElementById("message");
+        messageElement.style.color = '#ff6b6b';
+        messageElement.style.fontSize = '24px';
+
+
+        if (!animationId) {
+            animate(0);
+        }
+     }
+
+
+    // Start the game with Level 1
+    initializeLevel1();
+
+  </script>
+
+<!-- === Livello 3: Bicchiere in equilibrio === -->
+<script>
+(function(){
+  //===== VARIABILI LIVELLO 3 =====
+  const canvas = document.getElementById('gameCanvas');
+  const ctx    = canvas.getContext('2d');
+  const beer = { x: canvas.width/2, y: canvas.height*0.6, width:40, height:80 };
+  let balanceAngle = (Math.random() < 0.5 ? -1 : 1) * 8;
+  let balanceSpeed = 0;
+  const maxAngle = 40;      // ridotto da 45° a 40° per maggiore difficoltà      // più facile
+  let balanceFrames= 0;
+  const winFrames  = 15*60;   // 15s a 60fps
+  let animationIdL3 = null;   // requestAnimationFrame id
+
+  //===== DISEGNO =====
+  function drawL3() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#ffe7a3';  // sfondo "birra"
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.save();
+    ctx.translate(beer.x, beer.y);
+    ctx.rotate(balanceAngle*Math.PI/180);
+
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-60,-10,120,20);           // Vassoio
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillRect(-beer.width/2,-beer.height-10,beer.width,beer.height); // Bicchiere
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-beer.width/2,-beer.height-10,beer.width,10); // Schiuma
+    ctx.restore();
+  }
+
+  //===== LOGICA =====
+  function stepL3(){
+    const drift = 0.04;       // aumentato da 0.03 a 0.04 per maggiore difficoltà
+    balanceSpeed += drift * Math.sign(balanceAngle);
+    balanceAngle += balanceSpeed;
+    balanceSpeed *= 0.98;
+
+    if(Math.abs(balanceAngle) >= maxAngle){
+      gameOver('fallen');
+      return;
+    }
+
+    balanceFrames++;
+    if(balanceFrames >= winFrames){
+      winGame();   // vittoria finale
+      return;
+    }
+
+    if(frame % 60 === 0){
+      const sec = Math.floor(balanceFrames/60);
+      document.getElementById('scoreDisplay').innerText = `Tempo: ${sec} / 15 s`;
+    }
+  }
+
+  function animateL3(timestamp){
+    animationIdL3 = requestAnimationFrame(animateL3);
+    frame++;
+    stepL3();
+    drawL3();
+  }
+
+  //===== PASSAGGIO DAL LIVELLO 2 AL 3 =====
+  function startLevel3(){
+    currentLevel = 3;
+    isGameOver = false;
+    isPaused = false;
+    isGameWon = false;
+    // Reset physics & objects
+    balanceAngle = (Math.random() < 0.5 ? -1 : 1) * 8;
+    balanceSpeed = 0;
+    balanceFrames = 0;
+    frame = 0;
+    beer.x = canvas.width / 2;
+    beer.y = canvas.height * 0.6;
+
+    document.getElementById('btnLeft').style.display = 'inline-block';
+    document.getElementById('btnRight').style.display = 'inline-block';
+    document.getElementById('btnPause').style.display = 'none';
+    document.getElementById('levelDisplay').innerText = 'Livello: 3';
+    document.getElementById('scoreDisplay').innerText = 'Tempo: 0 / 15 s';
+    showMessage('');
+    // Avvia animazione
+    animateL3(0);
+  }
+
+  const originalWinGame = winGame;
+window.winGame = function(){
+  if(currentLevel === 2){
+    // fermiamo animazione del livello 2
+    cancelAnimationFrame(animationId);
+    animationId = null;
+    showMessage('LIVELLO SUPERATO');
+    const messageElement = document.getElementById('message');
+    messageElement.style.color = '#00FF00';
+    messageElement.style.fontSize = '48px';
+    setTimeout(startLevel3, 2000);
+  } else if (currentLevel === 3){
+    // Fine livello 3 -> avvia livello 4
+    cancelAnimationFrame(animationIdL3);
+    animationIdL3 = null;
+    showMessage('LIVELLO SUPERATO');
+    const messageElement = document.getElementById('message');
+    messageElement.style.color = '#00FF00';
+    messageElement.style.fontSize = '48px';
+    setTimeout(startLevel4, 2000);
+  } else {
+    originalWinGame();
+  }
+};
+
+  //===== GAME OVER PATCH =====
+  const originalGameOver = gameOver;
+  window.gameOver = function(reason='hit'){
+    if(currentLevel === 3){
+      cancelAnimationFrame(animationIdL3);
+      document.getElementById('btnLeft').style.display='none';
+      document.getElementById('btnRight').style.display='none';
+      showMessage('💦 Birra rovesciata! Clicca "Ricomincia"');
+      isGameOver = true;
+    }else{
+      originalGameOver(reason);
+    }
+  };
+
+  
+
+  //===== INPUT LIVELLO 3 =====
+  document.getElementById('btnLeft').addEventListener('click', ()=>{ if(currentLevel===3&&!isGameOver) balanceSpeed -= 2; });
+  document.getElementById('btnRight').addEventListener('click',()=>{ if(currentLevel===3&&!isGameOver) balanceSpeed += 2; });
+  document.addEventListener('keydown', e=>{
+    if(currentLevel===3&&!isGameOver){
+      if(e.key==='ArrowLeft') balanceSpeed -= 2;
+      if(e.key==='ArrowRight') balanceSpeed += 2;
+    }
+  });
+
+
+  // Rendi accessibile startLevel3 a resetGame
+  window.startLevel3 = startLevel3;
+})();
+</script>
+
+<!-- === Livello 4: Click di precisione (bersaglio variabile) === -->
+<script>
+(function(){
+  const canvas = document.getElementById('gameCanvas');
+  const ctx    = canvas.getContext('2d');
+
+  /* ----- parametri di difficoltà ----- */
+  let pointerAngle   = 0;
+  const speedBase    = 0.045;
+  let speed          = speedBase;
+  const tolBase      = 0.22;
+  let tolleranza     = tolBase;
+
+  let target         = randomAngle();
+  let animationIdL4  = null;
+  let hits           = 0;
+  const targetHits   = 3;
+
+  /* ----------- helper ----------- */
+  function randomAngle(){
+    return Math.random()*Math.PI*2 - Math.PI;  // (-π, π)
+  }
+
+  /* ----------- avvio ----------- */
+  function startLevel4(){
+    currentLevel   = 4;
+    isGameOver     = false;
+    isGameWon      = false;
+    isPaused       = false;
+    frame          = 0;
+    hits           = 0;
+    speed          = speedBase;
+    tolleranza     = tolBase;
+    target         = randomAngle();
+
+    document.getElementById('btnLeft').style.display  = 'none';
+    document.getElementById('btnRight').style.display = 'none';
+    document.getElementById('btnPause').style.display = 'none';
+    document.getElementById('levelDisplay').innerText = 'Livello: 4';
+    document.getElementById('scoreDisplay').innerText = '';
+    showMessage('Colpisci il bersaglio 3 volte!');
+
+    animateL4();
+  }
+  window.startLevel4 = startLevel4;
+  window.animationIdL4 = null;
+
+  /* ----------- animazione ----------- */
+  function animateL4(){
+    animationIdL4 = requestAnimationFrame(animateL4);
+    window.animationIdL4 = animationIdL4;
+    pointerAngle = (pointerAngle + speed) % (Math.PI*2);
+    drawL4();
+  }
+
+  /* ----------- disegno ----------- */
+  function drawL4(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const cx = canvas.width/2;
+    const cy = canvas.height/2;
+    const R  = 140;
+
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // cerchio esterno
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,0,Math.PI*2);
+    ctx.stroke();
+
+    // bersaglio
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(cx,cy,R, target - tolleranza, target + tolleranza);
+    ctx.stroke();
+
+    // puntatore
+    const px = cx + R*Math.cos(pointerAngle);
+    const py = cy + R*Math.sin(pointerAngle);
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(px,py,12,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  /* ----------- input ----------- */
+  canvas.addEventListener('click', ()=>{
+    if(currentLevel !== 4 || isGameOver || isPaused) return;
+
+    const delta = Math.abs(((pointerAngle - target + Math.PI) % (Math.PI*2)) - Math.PI);
+    if(delta < tolleranza){
+      hits += 1;
+      if(hits >= targetHits){
+        finishLevel4();
+      } else {
+        target     = randomAngle();
+        speed      += 0.01;
+        tolleranza = Math.max(tolleranza - 0.05, 0.12);
+        showMessage(`Ben fatto! ${hits}/${targetHits}`);
+        setTimeout(()=>showMessage(''),800);
+      }
+    } else {
+      showMessage('Troppo presto / tardi!');
+      setTimeout(()=>showMessage(''),800);
+    }
+  });
+
+
+  /* ----------- vittoria e sequenza finale ----------- */
+  function finishLevel4(){
+    cancelAnimationFrame(animationIdL4);
+    isGameWon = true;
+
+    // Fase 1: mostra "GIOCO COMPLETATO" per 3 secondi
+    showMessage('GIOCO COMPLETATO');
+
+    setTimeout(()=>{
+      // Fase 2: mostra ringraziamento per 4 secondi
+      showMessage('Grazie! Adesso verrai reindirizzato al nostro sito');
+
+      setTimeout(()=>{
+        // Fase 3: countdown 3‑2‑1 (1 sec ciascuno)
+        const steps = ['3','2','1'];
+        steps.forEach((val, idx)=>{
+          setTimeout(()=>showMessage(val), idx*1000);
+        });
+
+        // Fase 4: proposta full screen dopo countdown
+        setTimeout(showProposalFullScreen, 3000);
+      }, 4000); // fine fase 2
+    }, 3000); // fine fase 1
+  }
+
+
+  
+  
+  function showProposalFullScreen(){
+  
+  showMessage('');  // rimuove numero 1
+// Pulisce canvas
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const cx = canvas.width/2;
+  const cy = canvas.height/2;
+
+  // sfondo scuro
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // testo rosso
+  ctx.font = 'bold 40px Arial';
+  ctx.fillStyle = '#e74c3c';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('VUOI SPOSARMI?', cx, cy - 120);
+
+  // cuore rosso pieno
+  ctx.save();
+  ctx.translate(cx, cy + 10);
+  ctx.scale(0.6, 0.6);
+  ctx.beginPath();
+  ctx.moveTo(0, -80);
+  ctx.bezierCurveTo(-55, -125, -140, -60, -140, 0);
+  ctx.bezierCurveTo(-140, 75, -75, 120, 0, 160);
+  ctx.bezierCurveTo(75, 120, 140, 75, 140, 0);
+  ctx.bezierCurveTo(140, -60, 55, -125, 0, -80);
+  ctx.closePath();
+  ctx.fillStyle = '#e74c3c';
+  ctx.fill();
+  ctx.restore();
+}})();
+</script>
+
+</body>
+</html>
