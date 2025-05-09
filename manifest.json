@@ -1,8 +1,12 @@
-{
-  "name": "Equilibrio Precario",
-  "short_name": "Equilibrio",
-  "start_url": "fullgame.html",
-  "display": "standalone",
+{{
+  "name": "Equilibrio Precario - Il Gioco",
+  "short_name": "Equilibrio Precario",
+  "description": "Un gioco web mobile in cui bilanci un vaso, fai surf e altro.",
+  "start_url": "./fullgame.html",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#222222",
+  "theme_color": "#4a6fa5",
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -14,7 +18,5 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff"
+  ]
 }
